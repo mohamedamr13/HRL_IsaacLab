@@ -163,12 +163,13 @@ def main():
     # design scene
     scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)
+    print(scene['robot'])
     # Play the simulator
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")
     # Run the simulator
-    run_simulator(sim, scene)
+    #run_simulator(sim, scene)
 
 
 if __name__ == "__main__":

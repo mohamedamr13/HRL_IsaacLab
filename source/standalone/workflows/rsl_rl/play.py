@@ -8,7 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-
+import numpy as np
 from omni.isaac.lab.app import AppLauncher
 
 # local imports
@@ -88,18 +88,46 @@ def main():
 
     # reset environment
     obs, _ = env.get_observations()
+    i = 0
+    steps = 78125
+    save_dataset = True
+    if save_dataset:
+        dataset = np.empty((steps*args_cli.num_envs, 2), dtype=object)
+        dataset[i] = (obs.cpu(), None)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
             actions = policy(obs)
+            
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, _, _ = env.step(actions)    
+            i += 1
+            # store the observations, rewards, actions
+            if save_dataset:
+                # print(actions.shape)
+                # print(obs.shape)
+                # print(reward.shape)
+                for j in range(args_cli.num_envs):
+                    dataset[i+j] = [obs[j].cpu(), actions[j].cpu()]
+            #dataset[i] = [obs.cpu(), reward.cpu(), actions.cpu()]
+            if i >= steps-1:
+                break
+            print('Step: ', i)
+            print( 'obs',  obs.shape)
+            print( 'action', actions.shape )
+
 
     # close the simulator
     env.close()
 
+    if save_dataset:
+        # load dataset to cpu as numpy array
+        export_model_dir = './drone_exported_play_buffer_10m_128_actor.npy'
+        # save the dataset as pickle file
+        np.save(export_model_dir,dataset)
+        print('Play Buffer saved successfully')
 
 if __name__ == "__main__":
     # run the main function

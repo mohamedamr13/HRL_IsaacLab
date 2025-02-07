@@ -117,6 +117,23 @@ def body_lin_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEnt
     return torch.sum(torch.norm(asset.data.body_lin_acc_w[:, asset_cfg.body_ids, :], dim=-1), dim=1)
 
 
+def lin_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("drone")) -> torch.Tensor:
+    """Penalize the linear acceleration of bodies using L2-kernel."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.root_lin_vel_b), dim=1)
+
+def ang_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("drone")) -> torch.Tensor:
+    """Penalize the linear acceleration of bodies using L2-kernel."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
+
+def distance_to_goal_tanh(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("drone")) -> torch.Tensor:
+    
+    asset: Articulation = env.scene[asset_cfg.name]
+    distance_to_goal = torch.linalg.norm(env.cfg.desired_pos_w - asset.data.root_pos_w, dim=1)
+    distance_to_goal_mapped = 1 - torch.tanh(distance_to_goal / 0.8)
+    return distance_to_goal_mapped
+
 """
 Joint penalties.
 """

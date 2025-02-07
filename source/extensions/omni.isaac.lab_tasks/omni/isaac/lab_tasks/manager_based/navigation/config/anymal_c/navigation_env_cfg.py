@@ -14,12 +14,20 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import AssetBaseCfg
+from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from omni.isaac.lab.sensors import ContactSensorCfg, RayCasterCfg, patterns, CameraCfg
 
 import omni.isaac.lab_tasks.manager_based.navigation.mdp as mdp
 from omni.isaac.lab_tasks.manager_based.locomotion.velocity.config.anymal_c.flat_env_cfg import AnymalCFlatEnvCfg
+from omni.isaac.lab_tasks.manager_based.locomotion.velocity.config.unitree_go1.flat_env_cfg import UnitreeGo1FlatEnvCfg
+# source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go1/flat_env_cfg.py
 
 LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
 
+import os 
+print( 'cwd: ', os.getcwd() )
 
 @configclass
 class EventCfg:
@@ -54,6 +62,8 @@ class ActionsCfg:
         low_level_observations=LOW_LEVEL_ENV_CFG.observations.policy,
     )
 
+    #print( 'low level obs', LOW_LEVEL_ENV_CFG.observations.policy )
+
 
 @configclass
 class ObservationsCfg:
@@ -67,6 +77,16 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "pose_command"})
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+        )
+        camera_capture = ObsTerm(
+            func=mdp.camera_capture,
+            params={"sensor_cfg": SceneEntityCfg("camera")},
+        )
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -153,6 +173,38 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
             self.scene.contact_forces.update_period = self.sim.dt
 
 
+        cfg = sim_utils.UsdFileCfg( usd_path = 'omniverse://localhost/Users/roshdim1/assets/test_env.usd' ) 
+        self.scene.envirnoment = AssetBaseCfg(
+            prim_path = '/World/Environment',
+            spawn = cfg
+        )
+
+
+        height_scanner = RayCasterCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+            attach_yaw_only=True,
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+            debug_vis=False,
+            mesh_prim_paths=["/World/ground"],
+            )
+
+        camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
+        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        )
+        
+        self.scene.height_scanner = height_scanner
+        self.scene.camera = camera
+
+
 class NavigationEnvCfg_PLAY(NavigationEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
@@ -160,6 +212,6 @@ class NavigationEnvCfg_PLAY(NavigationEnvCfg):
 
         # make a smaller scene for play
         self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
+        self.scene.env_spacing = 5.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False

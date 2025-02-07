@@ -141,6 +141,7 @@ def parse_env_cfg(
 
     # load the default configuration
     cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+
     # update the main configuration
     if isinstance(cfg, dict):
         cfg = update_dict(cfg, args_cfg)

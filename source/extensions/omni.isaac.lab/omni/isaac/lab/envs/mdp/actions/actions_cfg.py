@@ -91,10 +91,27 @@ class JointEffortActionCfg(JointActionCfg):
 
     class_type: type[ActionTerm] = joint_actions.JointEffortAction
 
+@configclass
+class JointTorqueActionCfg(JointActionCfg):
+    """Configuration for the joint torque action term.
+
+    See :class:`JointEffortAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.JointTorqueAction
 
 ##
 # Joint actions rescaled to limits.
 ##
+
+@configclass
+class MobileJointVelocityActionCfg(JointActionCfg):
+    """Configuration for the joint torque action term.
+
+    See :class:`JointEffortAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.MobileJointVelocityAction
 
 
 @configclass

@@ -72,6 +72,19 @@ def root_height_below_minimum(
     return asset.data.root_pos_w[:, 2] < minimum_height
 
 
+def quadcopter_died(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("drone")
+) -> torch.Tensor:
+    """Terminate when the asset's root height is below the minimum height.
+
+    Note:
+        This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    died = torch.logical_or(asset.data.root_pos_w[:, 2] < 0.1, asset.data.root_pos_w[:, 2] > 2.0)
+    return died
+
 """
 Joint terminations.
 """

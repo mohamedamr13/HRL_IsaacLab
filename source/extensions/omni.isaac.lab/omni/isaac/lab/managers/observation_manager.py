@@ -43,6 +43,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_dim: dict[str, tuple[int, ...]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
+            print(f"term_dims: {term_dims}")
             self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
 
     def __str__(self) -> str:

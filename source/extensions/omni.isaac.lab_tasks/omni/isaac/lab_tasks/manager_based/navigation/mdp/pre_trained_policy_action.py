@@ -43,6 +43,8 @@ class PreTrainedPolicyAction(ActionTerm):
             raise FileNotFoundError(f"Policy file '{cfg.policy_path}' does not exist.")
         file_bytes = read_file(cfg.policy_path)
         self.policy = torch.jit.load(file_bytes).to(env.device).eval()
+        # self.policy = torch.load(cfg.policy_path)
+        print( 'RAW ACTION DIM',  self.action_dim)
 
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
 
@@ -55,6 +57,9 @@ class PreTrainedPolicyAction(ActionTerm):
         cfg.low_level_observations.actions.params = dict()
         cfg.low_level_observations.velocity_commands.func = lambda dummy_env: self._raw_actions
         cfg.low_level_observations.velocity_commands.params = dict()
+
+        print('LOW LEVEL CONFIG')
+        print( cfg.low_level_observations )
 
         # add the low level observations to the observation manager
         self._low_level_obs_manager = ObservationManager({"ll_policy": cfg.low_level_observations}, env)
@@ -87,7 +92,9 @@ class PreTrainedPolicyAction(ActionTerm):
     def apply_actions(self):
         if self._counter % self.cfg.low_level_decimation == 0:
             low_level_obs = self._low_level_obs_manager.compute_group("ll_policy")
+            #print('ll obs', low_level_obs.shape)
             self.low_level_actions[:] = self.policy(low_level_obs)
+            #print( 'll action', self.low_level_actions.shape )
             self._low_level_action_term.process_actions(self.low_level_actions)
             self._counter = 0
         self._low_level_action_term.apply_actions()

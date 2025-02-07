@@ -30,6 +30,7 @@ from omni.isaac.lab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
+    from omni.isaac.lab_tasks.manager_based.navigation.config.quadcopter.quadcopter_manager_env import QuadcopterNavigationEnv
 
 
 def randomize_rigid_body_material(
@@ -147,6 +148,24 @@ def add_body_mass(
     randomize_rigid_body_mass(
         env, env_ids, asset_cfg, mass_distribution_params, operation="add", distribution="uniform"
     )
+
+def init_desired_pos(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    mass_distribution_params: tuple[float, float],
+    asset_cfg: SceneEntityCfg,
+    ):
+    env.cfg.desired_pos_w = torch.zeros(env.scene.num_envs, 3, device='cpu')
+    env.cfg.thrust = torch.zeros(env.scene.num_envs, 1, 3, device='cpu')
+    env.cfg.moment = torch.zeros(env.scene.num_envs, 1, 3, device='cpu')
+    env.cfg.thrust_to_weight = 1.9
+    env.cfg.moment_scale = 0.01
+
+    robot_mass = env.scene.robot.root_physx_view.get_masses()[0].sum()
+    env.cfg.robot_mass = robot_mass
+    gravity_magnitude = torch.tensor(env.sim.cfg.gravity, device=self.device).norm()
+    env.cfg.gravity_magnitude = gravity_magnitude
+    env.cfg.robot_weight = (robot_mass * gravity_magnitude).item()
 
 
 def randomize_rigid_body_mass(
@@ -633,6 +652,53 @@ def reset_root_state_uniform(
     # set into the physics simulation
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+def reset_root_joint_state(env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("drone"),
+    ):
+
+        asset: Articulation = env.scene[asset_cfg.name]
+
+        # Logging
+        # final_distance_to_goal = torch.linalg.norm(
+        #     env.desired_pos_w[env_ids] - asset.data.root_pos_w[env_ids], dim=1
+        # ).mean()
+        # extras = dict()
+        # for key in env.episode_sums.keys():
+        #     episodic_sum_avg = torch.mean(env.episode_sums[key][env_ids])
+        #     extras["Episode Reward/" + key] = episodic_sum_avg / env.max_episode_length
+        #     env.episode_sums[key][env_ids] = 0.0
+        # env.extras["log"] = dict()
+        # env.extras["log"].update(extras)
+        # extras = dict()
+        # extras["Episode Termination/died"] = torch.count_nonzero(env.reset_terminated[env_ids]).item()
+        # extras["Episode Termination/time_out"] = torch.count_nonzero(env.reset_time_outs[env_ids]).item()
+        # extras["Metrics/final_distance_to_goal"] = final_distance_to_goal.item()
+        # env.extras["log"].update(extras)
+
+        env.episode_length_buf[env_ids] = 0
+
+        asset.reset(env_ids)
+        # if len(env_ids) == env.num_envs:
+        #     # Spread out the resets to avoid spikes in training when many environments reset at a similar time
+        #     env.episode_length_buf = torch.randint_like(env.episode_length_buf, high=int(env.max_episode_length))
+
+        # _terrain = env.cfg.scene.terrain.class_type(env.cfg.scene.terrain)
+        #_terrain = env.cfg._terrain
+        _terrain = env.scene.terrain
+        # Sample new commands
+        env.cfg.desired_pos_w[env_ids, :2] = torch.zeros_like(env.cfg.desired_pos_w[env_ids, :2]).uniform_(-2.0, 2.0)
+        env.cfg.desired_pos_w[env_ids, :2] += _terrain.env_origins[env_ids, :2]
+        env.cfg.desired_pos_w[env_ids, 2] = torch.zeros_like(env.cfg.desired_pos_w[env_ids, 2]).uniform_(0.5, 1.5)
+        # Reset robot state
+        joint_pos = asset.data.default_joint_pos[env_ids]
+        joint_vel = asset.data.default_joint_vel[env_ids]
+        default_root_state = asset.data.default_root_state[env_ids]
+        default_root_state[:, :3] += _terrain.env_origins[env_ids]
+        asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
+        asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        asset.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 
 def reset_root_state_with_random_orientation(

@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import RayCaster
+from omni.isaac.lab.sensors import RayCaster, Camera
+from omni.isaac.lab.utils.math import subtract_frame_transforms
+
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -38,6 +40,7 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
+
     return asset.data.root_lin_vel_b
 
 
@@ -92,6 +95,14 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_ang_vel_w
 
+def desired_pos_b(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("drone")):
+    """Desired position of the asset's root in the asset's root frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    desired_pos_b, _ = subtract_frame_transforms(
+            asset.data.root_state_w[:, :3], asset.data.root_state_w[:, 3:7], env.cfg.desired_pos_w
+        )
+    return desired_pos_b
 
 """
 Joint state.
@@ -168,6 +179,24 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
     # height scan: height = sensor_height - hit_point_z - offset
     return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
+
+def camera_capture(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+    """Height scan from the given sensor w.r.t. the sensor's frame.
+
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    """
+    # extract the used quantities (to enable type-hinting)
+    sensor: Camera = env.scene.sensors[sensor_cfg.name]
+    # height scan: height = sensor_height - hit_point_z - offset
+    # reshape the image to (batch_size, heigh*width)
+    data_depth = sensor.data.output["distance_to_image_plane"].view(env.num_envs, -1)
+    # normalize the depth values 
+    min_depth = data_depth.min(dim=1, keepdim=True)[0]
+    max_depth = data_depth.max(dim=1, keepdim=True)[0]
+
+    # data_depth = (data_depth - min_depth) / (max_depth - min_depth)
+
+    return data_depth
 
 
 def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

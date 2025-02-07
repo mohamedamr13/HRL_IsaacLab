@@ -204,3 +204,50 @@ class JointEffortAction(JointAction):
     def apply_actions(self):
         # set joint effort targets
         self._asset.set_joint_effort_target(self.processed_actions, joint_ids=self._joint_ids)
+
+class JointTorqueAction(JointAction):
+    """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
+
+    cfg: actions_cfg.JointTorqueActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnv):
+        
+        super().__init__(cfg, env)
+
+
+        self._thrust_to_weight = env.cfg.thrust_to_weight
+        self._moment_scale = env.cfg.moment_scale
+        self._robot_weight = env.cfg.robot_weight
+
+        
+        self._body_id = self._asset.find_bodies("body")[0]
+        self._thrust = torch.zeros(env.num_envs, 1, 3,  device='cuda:0')
+        self._moment = torch.zeros(env.num_envs, 1, 3, device='cuda:0')
+
+    def apply_actions(self):
+        self._actions = self.raw_actions.clone().clamp(-1.0, 1.0)
+        #self._body_id = self.env.robot.find_bodies("body")[0]
+        self._thrust[:, 0, 2] = self._thrust_to_weight * self._robot_weight * (self._actions[:, 0] + 1.0) / 2.0
+        self._moment[:, 0, :] = self._moment_scale * self._actions[:, 1:]
+        # set joint effort targets
+        self._asset.set_external_force_and_torque(self._thrust, self._moment, body_ids=self._body_id)
+
+class MobileJointVelocityAction(JointAction):
+    """Joint action term that applies the processed actions to the articulation's joints as velocity commands."""
+
+    cfg: actions_cfg.MobileJointVelocityActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: actions_cfg.MobileJointVelocityActionCfg, env: ManagerBasedEnv):
+        # initialize the action term
+        super().__init__(cfg, env)
+    
+    
+    def apply_actions(self):
+        # set joint velocity targets
+        print('actions')
+        print(self.processed_actions)
+        self._asset.set_joint_velocity_target(self.processed_actions, joint_ids=self._joint_ids)
+        # TO DO convert wheel veloctity to robot velocity
+        self._asset.write_data_to_sim()

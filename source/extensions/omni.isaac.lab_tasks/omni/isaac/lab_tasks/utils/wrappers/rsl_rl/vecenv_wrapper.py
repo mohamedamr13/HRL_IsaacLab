@@ -137,13 +137,15 @@ class RslRlVecEnvWrapper(VecEnv):
     Properties
     """
 
+    
     def get_observations(self) -> tuple[torch.Tensor, dict]:
         """Returns the current observations of the environment."""
         if hasattr(self.unwrapped, "observation_manager"):
             obs_dict = self.unwrapped.observation_manager.compute()
         else:
             obs_dict = self.unwrapped._get_observations()
-        return obs_dict["policy"], {"observations": obs_dict}
+        
+        return obs_dict['policy'], {"observations": obs_dict}
 
     @property
     def episode_length_buf(self) -> torch.Tensor:
@@ -170,9 +172,10 @@ class RslRlVecEnvWrapper(VecEnv):
         # reset the environment
         obs_dict, _ = self.env.reset()
         # return observations
-        return obs_dict["policy"], {"observations": obs_dict}
+        return obs_dict['policy'], {"observations": obs_dict}
 
     def step(self, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
         # compute dones for compatibility with RSL-RL
